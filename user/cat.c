@@ -2,7 +2,7 @@
 #include "kernel/stat.h"
 #include "user/user.h"
 
-char buf[512];
+char buf[512]; // OMRI CHECKING GIT PUSH
 
 void
 cat(int fd)
