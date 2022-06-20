@@ -257,13 +257,14 @@ iappend(uint inum, void *xp, int n)
   struct dinode din;
   char buf[BSIZE];
   uint indirect[NINDIRECT];
+  //uint double_indirect[NINDIRECT][NINDIRECT]; // Matrix for double indirect
   uint x;
 
   rinode(inum, &din);
   off = xint(din.size);
   // printf("append inum %d at off %d sz %d\n", inum, off, n);
   while(n > 0){
-    fbn = off / BSIZE;
+    fbn = off / BSIZE; // first block number
     assert(fbn < MAXFILE);
     if(fbn < NDIRECT){
       if(xint(din.addrs[fbn]) == 0){
@@ -291,7 +292,7 @@ iappend(uint inum, void *xp, int n)
   }
   din.size = xint(off);
   winode(inum, &din);
-}
+} // TODO: Add double indirect
 
 void
 die(const char *s)

@@ -9,5 +9,5 @@
 #define MAXOPBLOCKS  10  // max # of blocks any FS op writes
 #define LOGSIZE      (MAXOPBLOCKS*3)  // max data blocks in on-disk log
 #define NBUF         (MAXOPBLOCKS*3)  // size of disk block cache
-#define FSSIZE       131072  // size of file system in blocks - OMRI should be 131072 blocks
+#define FSSIZE       131072  // size of file system in blocks - should be 2^17 blocks (virtual size)
 #define MAXPATH      128   // maximum file path name
