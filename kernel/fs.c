@@ -725,9 +725,9 @@ int
 symlink(const char *oldpath, const char *newpath){
   char path_name[DIRSIZ];
   struct inode *ip, *dp;
-  uint *poff, oldp_size;
+  uint *poff = 0, oldp_size;
 
-  if((dp = nameiparent(newpath, path_name)) == 0) return -1; // <path_name> exists
+  if((dp = nameiparent((char*)newpath, path_name)) == 0) return -1; // <path_name> exists
   
   ilock(dp);
 
@@ -754,7 +754,7 @@ symlink(const char *oldpath, const char *newpath){
   iupdate(ip); // Copy <ip> to disk
 
   oldp_size = strlen(oldpath) + 1; // Size of <oldpath>
-  if(writei(ip, 0, (uint64)oldpath, poff, oldp_size) < oldp_size){
+  if(writei(ip, 0, (uint64)oldpath, *poff, oldp_size) < oldp_size){
     iunlockput(dp);
     iunlockput(ip);
     return -1;
