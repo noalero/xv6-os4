@@ -720,3 +720,58 @@ nameiparent(char *path, char *name)
 {
   return namex(path, 1, name);
 }
+
+int
+symlink(const char *oldpath, const char *newpath){
+  char path_name[DIRSIZ];
+  struct inode *ip, *dp;
+  uint *poff, oldp_size;
+
+  if((dp = nameiparent(newpath, path_name)) == 0) return -1; // <path_name> exists
+  
+  ilock(dp);
+
+  if((ip = dirlookup(dp, path_name, poff)) != 0){ // No entry matches <path_name>
+    iunlock(dp);
+    iput(dp);
+    return -1;
+  }
+
+  begin_op(); // called at the start of each FS system call.
+
+  if ((ip = ialloc(dp->dev, T_SYMLINK)) == 0){
+    iunlock(dp);
+    iput(dp);
+    return -1;
+  }
+
+  ilock(ip);
+  ip->nlink = 1;
+  ip->major = 0;
+  ip->minor = 0;
+  // <ip-dev> & <ip-type> were set in <ialloc>
+
+  iupdate(ip); // Copy <ip> to disk
+
+  oldp_size = strlen(oldpath) + 1; // Size of <oldpath>
+  if(writei(ip, 0, (uint64)oldpath, poff, oldp_size) < oldp_size){
+    iunlockput(dp);
+    iunlockput(ip);
+    return -1;
+  }
+
+  dirlink(ip, path_name, ip->inum);
+  iunlockput(dp);
+  iunlock(ip);
+  iput(ip);
+
+  end_op(); // called at the end of each FS system call.
+  
+  return 0;  
+}
+
+
+int
+readlink(const char *pathname, char *buf, int bufsize){
+  return -1;
+}
