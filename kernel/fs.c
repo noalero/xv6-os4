@@ -773,5 +773,22 @@ symlink(const char *oldpath, const char *newpath){
 
 int
 readlink(const char *pathname, char *buf, int bufsize){
+  char name[DIRSIZ];
+  struct inode *ip;
+  uint *poff = 0;
+
+  if((ip = namex((char*)pathname, 0,name)) == 0) return -1;
+  ilock(ip);
+  if(ip->type != T_SYMLINK) goto error_ip;
+  if(ip->size > bufsize) goto error_ip;
+  
+  begin_op();
+  readi(ip, 0, (uint64)buf, *poff, ip->size);
+  iunlock(ip);
+  end_op();
+  return 0;
+
+error_ip:
+  iunlock(ip);
   return -1;
 }
