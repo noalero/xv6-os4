@@ -416,7 +416,7 @@ sys_mknod(void)
 uint64
 sys_chdir(void)
 {
-  char path[MAXPATH], real_path[MAXPATH];
+  char path[MAXPATH];
   struct inode *ip, *dp;
   struct proc *p = myproc();
   
@@ -516,7 +516,29 @@ sys_pipe(void)
 }
 
 uint64
-sys_symlink(void){ return 1;} // TODO
+sys_symlink(void){
+    char target[MAXPATH], path[MAXARG];
+    if(argstr(0, target, MAXPATH) < 0 || argstr(1, path, MAXPATH) < 0){
+        return -1;
+    }
+    //printf(“creating a sym link. Target(%s). Path(%s)\n”, target, path);
+
+    begin_op();
+    struct inode *ip = create(path, T_SYMLINK, 0, 0);
+    if(ip == 0){
+        end_op();
+        return -1;
+    }
+
+    int len = strlen(target);
+    writei(ip, 0, (uint64)&len, 0, sizeof(int));
+    writei(ip, 0, (uint64)target, sizeof(int), len + 1);
+    iupdate(ip);
+    iunlockput(ip);
+
+    end_op();
+    return 0;
+}
 
 uint64
 sys_symread(void){return 1;}// TODO

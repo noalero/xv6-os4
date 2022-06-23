@@ -808,7 +808,7 @@ get_dereferenced_inode(struct inode *ip){
   while ((temp_ip->type == T_SYMLINK) & (deref_num > 0)){
     deref_num--;
     ilock(temp_ip);
-    if(readi(temp_ip, 0, pathname, poff, DIRSIZ) == 0) goto error;
+    if(readi(temp_ip, 0, *pathname, *poff, DIRSIZ) == 0) goto error;
     iunlockput(temp_ip);
     if((temp_ip = namei(pathname)) == 0) return 0; 
   }
