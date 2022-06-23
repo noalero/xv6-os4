@@ -11,3 +11,4 @@
 #define NBUF         (MAXOPBLOCKS*3)  // size of disk block cache
 #define FSSIZE       (1 << 17)  // size of file system in blocks - should be 2^17 blocks (virtual size)
 #define MAXPATH      128   // maximum file path name
+#define MAX_DEREFERENCE 31 // maximum number of symlinks to a file. used to avoid an infinite loop.

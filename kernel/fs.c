@@ -685,6 +685,7 @@ namex(char *path, int nameiparent, char *name)
 
   while((path = skipelem(path, name)) != 0){
     ilock(ip);
+    // TODO: Add MAX_DEREFERENCE
     if(ip->type != T_DIR){
       iunlockput(ip);
       return 0;
@@ -770,13 +771,12 @@ symlink(const char *oldpath, const char *newpath){
   return 0;  
 }
 
-
 int
 readlink(const char *pathname, char *buf, int bufsize){
   char name[DIRSIZ];
   struct inode *ip;
   uint *poff = 0;
-
+// TODO: Add dereference
   if((ip = namex((char*)pathname, 0,name)) == 0) return -1;
   ilock(ip);
   if(ip->type != T_SYMLINK) goto error_ip;
@@ -791,4 +791,30 @@ readlink(const char *pathname, char *buf, int bufsize){
 error_ip:
   iunlock(ip);
   return -1;
+}
+
+// Dereference (over and over) inode <ip> of a symlink,
+// then returns the inode of the actual file (type != T_SYMLINK).
+// returns 0 upon failure.
+struct inode*
+get_dereferenced_inode(struct inode *ip){
+
+  char pathname[DIRSIZ];
+  struct inode *temp_ip;
+  int deref_num = MAX_DEREFERENCE;
+  uint *poff = 0;
+
+  temp_ip = ip;
+  while ((temp_ip->type == T_SYMLINK) & (deref_num > 0)){
+    deref_num--;
+    ilock(temp_ip);
+    if(readi(temp_ip, 0, pathname, poff, DIRSIZ) == 0) goto error;
+    iunlockput(temp_ip);
+    if((temp_ip = namei(pathname)) == 0) return 0; 
+  }
+  if(temp_ip->type == T_SYMLINK) return 0;
+  return temp_ip;
+error:
+  iunlockput(temp_ip);
+  return 0;
 }
