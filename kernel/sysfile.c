@@ -328,7 +328,7 @@ sys_open(void) {
             readi(ip, 0, (uint64) &len, 0, sizeof(int));
 
             if (len > MAXPATH)
-                panic("open: corrupted symlink inode");
+                panic("open: length of path bigger than max - corrupted symlink inode");
 
             readi(ip, 0, (uint64) path, sizeof(int), len + 1);
             iunlockput(ip);
