@@ -416,26 +416,30 @@ sys_mknod(void)
 uint64
 sys_chdir(void)
 {
-  char path[MAXPATH];
-  struct inode *ip;
+  char path[MAXPATH], real_path[MAXPATH];
+  struct inode *ip, *dp;
   struct proc *p = myproc();
   
   begin_op();
-  if(argstr(0, path, MAXPATH) < 0 || (ip = namei(path)) == 0){
-    end_op();
-    return -1;
-  }
+  if(argstr(0, path, MAXPATH) < 0 || (dp = namei(path)) == 0) goto error;
+  
+  //if(ip->type == T_SYMLINK) // Get the path aka the content of file
+    if((ip = get_dereferenced_inode(dp)) == 0) goto error; // dereference
+
   ilock(ip);
   if(ip->type != T_DIR){
     iunlockput(ip);
-    end_op();
-    return -1;
+    goto error;
   }
   iunlock(ip);
   iput(p->cwd);
   end_op();
   p->cwd = ip;
   return 0;
+
+error:
+  end_op();
+  return -1;
 }
 
 uint64
@@ -510,3 +514,9 @@ sys_pipe(void)
   }
   return 0;
 }
+
+uint64
+sys_symlink(void){ return 1;} // TODO
+
+uint64
+sys_symread(void){return 1;}// TODO
