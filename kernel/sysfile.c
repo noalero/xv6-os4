@@ -210,6 +210,7 @@ sys_unlink(void)
 
   if(ip->nlink < 1)
     panic("unlink: nlink < 1");
+ 
   if(ip->type == T_DIR && !isdirempty(ip)){
     iunlockput(ip);
     goto bad;
@@ -322,32 +323,39 @@ sys_open(void) {
     }
 
     if ((ip->type == T_SYMLINK) && !(omode & O_NOFOLLOW)) {
-        int count = 0;
-        while (ip->type == T_SYMLINK && count < 31) {
-            int len = 0;
-            readi(ip, 0, (uint64) &len, 0, sizeof(int));
+      iunlockput(ip);
+      if ((ip = get_dereferenced_inode(ip)) == 0){
+        end_op();
+        return -1;
+      }
+      ilock(ip);
+        // int count = 0;
+        // while (ip->type == T_SYMLINK && count < 31) {
+        //     int len = 0;
+        //     readi(ip, 0, (uint64) &len, 0, sizeof(int));
 
-            if (len > MAXPATH)
-                panic("open: corrupted symlink inode");
+        //     if (len > MAXPATH)
+        //         panic("open: length of path bigger than max - corrupted symlink inode");
 
-            readi(ip, 0, (uint64) path, sizeof(int), len + 1);
-            iunlockput(ip);
-            if ((ip = namei(path)) == 0) {
-                end_op();
-                return -1;
-            }
-            ilock(ip);
-            count++;
-        }
-        if (count >= 31) {
-            if ((ip->type == T_SYMLINK))
-                printf("%s\n", ip->addrs);
-            printf("We got a cycle!\n");
-            iunlockput(ip);
-            end_op();
-            return -1;
-        }
+        //     readi(ip, 0, (uint64) path, sizeof(int), len + 1);
+        //     iunlockput(ip);
+        //     if ((ip = namei(path)) == 0) {
+        //         end_op();
+        //         return -1;
+        //     }
+        //     ilock(ip);
+        //     count++;
+        // }
+        // if (count >= 31) {
+        //     if ((ip->type == T_SYMLINK))
+        //         printf("%s\n", ip->addrs);
+        //     printf("We got a cycle!\n");
+        //     iunlockput(ip);
+        //     end_op();
+        //     return -1;
+        // }
     }
+    
     if ((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0) {
         if (f)
             fileclose(f);
@@ -416,7 +424,7 @@ sys_mknod(void)
 uint64
 sys_chdir(void)
 {
-  char path[MAXPATH], real_path[MAXPATH];
+  char path[MAXPATH];
   struct inode *ip, *dp;
   struct proc *p = myproc();
   
@@ -516,7 +524,29 @@ sys_pipe(void)
 }
 
 uint64
-sys_symlink(void){ return 1;} // TODO
+sys_symlink(void){
+  const char *oldpath, *newpath;
+  int first, second;
+
+  first = argstr(0, (char*)(&oldpath), sizeof(char*)); // get first CL argument to <oldpath>
+  second = argstr(1, (char*)(&newpath), sizeof(char*)); // get second CL argument to <newpath>
+  // These are the arguments to <symlink>
+
+  if((first < 0) | (second < 0)) return -1;
+  return symlink(oldpath, newpath);
+}
+
 
 uint64
-sys_symread(void){return 1;}// TODO
+sys_readlink(void){
+  const char *pathname;
+  char *buf = 0;
+  int bufsize, first, second, third;
+
+  first = argstr(0, (char*)(&pathname), sizeof(char*));
+  second = argstr(1, buf, sizeof(char*));
+  third = argint(2, (&bufsize));
+
+  if((first < 0) | (second < 0) | (third < 0)) return -1;
+  return readlink(pathname, buf, bufsize);
+}

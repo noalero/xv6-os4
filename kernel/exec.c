@@ -27,6 +27,12 @@ exec(char *path, char **argv)
     end_op();
     return -1;
   }
+
+  if((ip = get_dereferenced_inode(ip)) == 0){ // Add dereference softlink to exec
+    end_op();
+    return -1;
+  }
+
   ilock(ip);
 
   // Check ELF header

@@ -25,7 +25,7 @@ fmtname(char *path)
 void
 ls(char *path)
 {
-  char buf[512], *p;
+  char buf[512], *p, syml[DIRSIZ];
   int fd;
   struct dirent de;
   struct stat st;
@@ -66,6 +66,12 @@ ls(char *path)
       printf("%s %d %d %d\n", fmtname(buf), st.type, st.ino, st.size);
     }
     break;
+  case T_SYMLINK:
+    strcpy(syml, path);
+    p = syml + strlen(syml);
+    *p++ = "->";
+
+    printf("%s %d %d %d\n", fmtname(syml), st.type, st.ino, st.size);
   }
   close(fd);
 }

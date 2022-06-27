@@ -36,5 +36,5 @@ entry("getpid");
 entry("sbrk");
 entry("sleep");
 entry("uptime");
-# entry("symlink");
-# entry("symread)");
+entry("symlink");
+entry("readlink");
