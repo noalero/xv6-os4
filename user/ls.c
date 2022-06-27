@@ -69,7 +69,7 @@ ls(char *path)
   case T_SYMLINK:
     strcpy(syml, path);
     p = syml + strlen(syml);
-    *p++ = "->";
+    //*p++ = "->";
 
     printf("%s %d %d %d\n", fmtname(syml), st.type, st.ino, st.size);
   }
