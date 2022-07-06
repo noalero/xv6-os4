@@ -685,7 +685,9 @@ namex(char *path, int nameiparent, char *name)
 
   while((path = skipelem(path, name)) != 0){
     ilock(ip);
-    // TODO: Add MAX_DEREFERENCE
+    // First get the <inode> of the hard link
+    if((ip = get_dereferenced_inode(ip)) == 0) 
+      return 0; // No need to call <iunlockput> if <ip> == 0
     if(ip->type != T_DIR){
       iunlockput(ip);
       return 0;
@@ -724,20 +726,21 @@ nameiparent(char *path, char *name)
 
 int
 symlink(const char *oldpath, const char *newpath){
+  printf("symlink\n");
   char path_name[DIRSIZ];
   struct inode *ip, *dp;
-  uint *poff = 0, oldp_size;
+  uint poff = 0, oldp_size;
 
-  if((dp = nameiparent((char*)newpath, path_name)) == 0) return -1; // <path_name> exists
-  
+  if((dp = nameiparent((char*)newpath, path_name)) == 0){
+    return -1;
+  } // <path_name> exists
   ilock(dp);
 
-  if((ip = dirlookup(dp, path_name, poff)) != 0){ // No entry matches <path_name>
+  if((ip = dirlookup(dp, path_name, &poff)) != 0){ // No entry matches <path_name>
     iunlock(dp);
     iput(dp);
     return -1;
   }
-
   begin_op(); // called at the start of each FS system call.
 
   if ((ip = ialloc(dp->dev, T_SYMLINK)) == 0){
@@ -745,7 +748,6 @@ symlink(const char *oldpath, const char *newpath){
     iput(dp);
     return -1;
   }
-
   ilock(ip);
   ip->nlink = 1;
   ip->major = 0;
@@ -755,13 +757,18 @@ symlink(const char *oldpath, const char *newpath){
   iupdate(ip); // Copy <ip> to disk
 
   oldp_size = strlen(oldpath) + 1; // Size of <oldpath>
-  if(writei(ip, 0, (uint64)oldpath, *poff, oldp_size) < oldp_size){
+  if(writei(ip, 0, (uint64)oldpath, poff, oldp_size) < oldp_size){
     iunlockput(dp);
     iunlockput(ip);
     return -1;
   }
 
-  dirlink(ip, path_name, ip->inum);
+  if(dirlink(dp, path_name, ip->inum) < 0){
+    iunlockput(dp);
+    iunlockput(ip);
+    return -1;
+  }
+
   iunlockput(dp);
   iunlock(ip);
   iput(ip);

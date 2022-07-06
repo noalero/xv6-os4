@@ -15,6 +15,8 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
+#include "syscall.h"
+#include <stddef.h>
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -525,17 +527,19 @@ sys_pipe(void)
 
 uint64
 sys_symlink(void){
-  const char *oldpath, *newpath;
-  int first, second;
+  char oldpath[MAXPATH], newpath[MAXARG];
+  //int first, second;
 
-  first = argstr(0, (char*)(&oldpath), sizeof(char*)); // get first CL argument to <oldpath>
-  second = argstr(1, (char*)(&newpath), sizeof(char*)); // get second CL argument to <newpath>
   // These are the arguments to <symlink>
-
-  if((first < 0) | (second < 0)) return -1;
-  return symlink(oldpath, newpath);
+  if (argstr(0, oldpath, MAXPATH) < 0 || argstr(1, newpath, MAXPATH) < 0){
+    printf("args\n");
+    return -1;
+  } 
+  else{
+    if(symlink(oldpath, newpath) < 0) return -1;
+  }
+  return 0;
 }
-
 
 uint64
 sys_readlink(void){
