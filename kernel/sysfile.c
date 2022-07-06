@@ -427,16 +427,15 @@ uint64
 sys_chdir(void)
 {
   char path[MAXPATH];
-  struct inode *ip, *dp;
+  struct inode *ip;
   struct proc *p = myproc();
   
   begin_op();
-  if(argstr(0, path, MAXPATH) < 0 || (dp = namei(path)) == 0) goto error;
+  if(argstr(0, path, MAXPATH) < 0 || (ip = namei(path)) == 0) goto error;
   
-  //if(ip->type == T_SYMLINK) // Get the path aka the content of file
-    if((ip = get_dereferenced_inode(dp)) == 0) goto error; // dereference
-
   ilock(ip);
+  if(ip->type == T_SYMLINK) // Get the path aka the content of file
+    if((ip = get_dereferenced_inode(ip)) == 0) goto error; // dereference
   if(ip->type != T_DIR){
     iunlockput(ip);
     goto error;
@@ -455,6 +454,7 @@ error:
 uint64
 sys_exec(void)
 {
+  struct inode* ip;
   char path[MAXPATH], *argv[MAXARG];
   int i;
   uint64 uargv, uarg;
@@ -480,6 +480,18 @@ sys_exec(void)
     if(fetchstr(uarg, argv[i], PGSIZE) < 0)
       goto bad;
   }
+  if((ip = namei(path)) == 0){
+    end_op();
+    return -1;
+  }
+  ilock(ip);
+  if(ip->type == T_SYMLINK){
+    if((ip = get_dereferenced_inode(ip)) == 0){
+      end_op();
+      return -1;
+    }
+  }
+  iunlock(ip);
 
   int ret = exec(path, argv);
 
@@ -523,6 +535,37 @@ sys_pipe(void)
     return -1;
   }
   return 0;
+}
+
+int
+symlink(const char *oldpath, const char *newpath){
+  char path_name[DIRSIZ];
+  struct inode *ip, *dp;
+  uint poff = 0, oldp_size;
+
+  begin_op(); // called at the start of each FS system call.
+
+  if((dp = nameiparent((char*)newpath, path_name)) == 0){
+    end_op();
+    return -1;
+  } // <path_name> exists
+  ilock(dp);
+  if((ip = dirlookup(dp, path_name, &poff)) != 0){ // No entry matches <path_name>
+    iunlock(dp);
+    end_op();
+    return -1;
+  }
+  if ((ip = create((char*)newpath, T_SYMLINK, 0, 0)) == 0){
+    end_op();
+    return -1;
+  }
+  oldp_size = strlen(oldpath) + 1; // Size of <oldpath>
+  if(writei(ip, 0, (uint64)oldpath, 0, oldp_size) != oldp_size) return -1;
+  if(dirlink(dp, path_name, ip->inum) < 0) panic("symlink: dirlink");
+  iunlockput(ip);
+
+  end_op(); // called at the end of each FS system call.
+  return 0;  
 }
 
 uint64

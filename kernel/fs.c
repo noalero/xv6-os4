@@ -725,78 +725,44 @@ nameiparent(char *path, char *name)
 }
 
 int
-symlink(const char *oldpath, const char *newpath){
-  printf("symlink\n");
-  char path_name[DIRSIZ];
-  struct inode *ip, *dp;
-  uint poff = 0, oldp_size;
-
-  if((dp = nameiparent((char*)newpath, path_name)) == 0){
-    return -1;
-  } // <path_name> exists
-  ilock(dp);
-
-  if((ip = dirlookup(dp, path_name, &poff)) != 0){ // No entry matches <path_name>
-    iunlock(dp);
-    iput(dp);
-    return -1;
-  }
-  begin_op(); // called at the start of each FS system call.
-
-  if ((ip = ialloc(dp->dev, T_SYMLINK)) == 0){
-    iunlock(dp);
-    iput(dp);
-    return -1;
-  }
-  ilock(ip);
-  ip->nlink = 1;
-  ip->major = 0;
-  ip->minor = 0;
-  // <ip-dev> & <ip-type> were set in <ialloc>
-
-  iupdate(ip); // Copy <ip> to disk
-
-  oldp_size = strlen(oldpath) + 1; // Size of <oldpath>
-  if(writei(ip, 0, (uint64)oldpath, poff, oldp_size) < oldp_size){
-    iunlockput(dp);
-    iunlockput(ip);
-    return -1;
-  }
-
-  if(dirlink(dp, path_name, ip->inum) < 0){
-    iunlockput(dp);
-    iunlockput(ip);
-    return -1;
-  }
-
-  iunlockput(dp);
-  iunlock(ip);
-  iput(ip);
-
-  end_op(); // called at the end of each FS system call.
-  
-  return 0;  
-}
-
-int
 readlink(const char *pathname, char *buf, int bufsize){
+  struct proc* p = myproc();
   char name[DIRSIZ];
   struct inode *ip;
-  uint *poff = 0;
-// TODO: Add dereference
-  if((ip = namex((char*)pathname, 0,name)) == 0) return -1;
-  ilock(ip);
-  if(ip->type != T_SYMLINK) goto error_ip;
-  if(ip->size > bufsize) goto error_ip;
-  
+
   begin_op();
-  readi(ip, 0, (uint64)buf, *poff, ip->size);
+  printf("readlink\n");
+  if((ip = namei((char*)pathname)) == 0){
+    printf("namei\n");
+    end_op();
+    return -1;
+  } 
+  ilock(ip);
+  if(ip->type != T_SYMLINK) {
+    printf("type\n");
+    goto error_ip;
+  }
+  if(ip->size > bufsize){
+   printf("size\n");
+   goto error_ip;
+  }
+  
+  if(readi(ip, 0, (uint64)name, 0, bufsize) < 0){
+     goto error_ip;
+     printf("readi\n");
+  }
+  if(copyout(p->pagetable, (uint64)buf, name, bufsize) < 0) {
+    printf("copyout\n");
+    goto error_ip;
+  }
   iunlock(ip);
+  printf("end\n");
   end_op();
   return 0;
 
 error_ip:
   iunlock(ip);
+  end_op();
   return -1;
 }
 
@@ -809,19 +775,17 @@ get_dereferenced_inode(struct inode *ip){
   char pathname[DIRSIZ];
   struct inode *temp_ip;
   int deref_num = MAX_DEREFERENCE;
-  uint *poff = 0;
 
   temp_ip = ip;
   while ((temp_ip->type == T_SYMLINK) & (deref_num > 0)){
-    deref_num--;
-    ilock(temp_ip);
-    if(readi(temp_ip, 0, *pathname, *poff, DIRSIZ) == 0) goto error;
+    deref_num -= 1;
+    if(readi(temp_ip, 0, *pathname, 0, temp_ip->size) < 0) goto error;
     iunlockput(temp_ip);
     if((temp_ip = namei(pathname)) == 0) return 0; 
   }
   if(temp_ip->type == T_SYMLINK) return 0;
   return temp_ip;
 error:
-  iunlockput(temp_ip);
+  iunlock(temp_ip);
   return 0;
 }
