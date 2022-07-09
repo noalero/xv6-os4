@@ -403,8 +403,6 @@ bmap(struct inode *ip, uint bn)
   }
   // Adding double indirect
   bn -= NINDIRECT;
-  bn1 = bn / NINDIRECT; // Access to index in first block of indirect addresses
-  bn2 = bn % NINDIRECT; // Access to index in second block of indirect addresses
 
   if(bn < NDOUBLEINDIRECT){
     // Load double indirect block, allocating if necessary.
@@ -413,7 +411,7 @@ bmap(struct inode *ip, uint bn)
     }
     bp = bread(ip->dev, addr);
     a = (uint*)bp->data;
-    
+    bn1 = bn / NINDIRECT; // Access to index in first block of indirect addresses
     if((addr = a[bn1]) == 0){
       a[bn1] = addr = balloc(ip->dev);
       log_write(bp);
@@ -421,6 +419,7 @@ bmap(struct inode *ip, uint bn)
     brelse(bp);
     bp = bread(ip->dev, addr);
     b = (uint*)bp->data;
+    bn2 = bn % NINDIRECT; // Access to index in second block of indirect addresses
     if((addr = b[bn2]) == 0){
       b[bn2] = addr = balloc(ip->dev);
       log_write(bp);
@@ -677,7 +676,6 @@ static struct inode*
 namex(char *path, int nameiparent, char *name)
 {
   struct inode *ip, *next;
-
   if(*path == '/')
     ip = iget(ROOTDEV, ROOTINO);
   else
@@ -686,8 +684,9 @@ namex(char *path, int nameiparent, char *name)
   while((path = skipelem(path, name)) != 0){
     ilock(ip);
     // First get the <inode> of the hard link
-    if((ip = get_dereferenced_inode(ip)) == 0) 
-      return 0; // No need to call <iunlockput> if <ip> == 0
+    // if((ip = get_dereferenced_inode(ip)) == 0) 
+    //   return 0; // No need to call <iunlockput> if <ip> == 0
+
     if(ip->type != T_DIR){
       iunlockput(ip);
       return 0;
@@ -725,38 +724,83 @@ nameiparent(char *path, char *name)
 }
 
 int
+symlink(const char *oldpath, const char *newpath){
+  char path_name[DIRSIZ];
+  struct inode *ip, *dp;
+  uint poff = 0, oldp_size;
+  printf("symlink\n"); // TODO
+
+  // <dp> is the inode of the directory to which the symlink file will belong
+  if((dp = nameiparent((char*)newpath, path_name)) == 0) return -1; 
+  printf("nameiparent\n"); // TODO
+  ilock(dp);
+  printf("ilock(dp)\n"); // TODO
+  // <ip> is the symlink inode located in <dp>'s directory
+  // Find a directory  for the new inode:
+  if((ip = dirlookup(dp, path_name, &poff)) != 0){ // No entry matches <path_name>
+    iunlockput(dp);
+    return -1;
+  }
+  printf("dirlookup\n"); // TODO
+
+  //ilock(ip);
+  begin_op(); // called at the start of each FS system call.
+
+  // Allocate an inode in <dp->dev> to hold <ip>:
+  if((ip = ialloc(dp->dev, T_SYMLINK)) == 0) panic("symlink: ialloc");
+  printf("ialloc\n"); // TODO
+  iunlockput(dp);
+
+  // Initialize <ip>:
+  ilock(ip);
+  ip->nlink = 1;
+  ip->major = 0;
+  ip->minor = 0;
+  
+
+  // Write <oldpath> to content of <newpath>
+  oldp_size = strlen(oldpath) + 1; // Size of <oldpath>
+  if(writei(ip, 0, (uint64)oldpath, 0, oldp_size) != oldp_size) {
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+  iupdate(ip);
+  printf("writei\n"); // TODO
+
+  // Write <ip>'s directory into <dp>'s directory
+  if(dirlink(dp, path_name, ip->inum) < 0) panic("symlink: dirlink");
+  //printf("ip->type = %d\n", ip->type); // TODO
+  iunlockput(ip);
+  end_op(); // called at the end of each FS system call.
+  printf("end\n"); // TODO
+  return 0;  
+}
+
+int
 readlink(const char *pathname, char *buf, int bufsize){
-  struct proc* p = myproc();
-  char name[DIRSIZ];
+  char name[MAXPATH];
+  safestrcpy(name, pathname, bufsize + 1);
   struct inode *ip;
+  printf("readlink\n"); // TODO
 
   begin_op();
-  printf("readlink\n");
-  if((ip = namei((char*)pathname)) == 0){
-    printf("namei\n");
+  if((ip = namei(name)) == 0){
     end_op();
     return -1;
   } 
+  printf("namei\n"); // TODO
   ilock(ip);
-  if(ip->type != T_SYMLINK) {
-    printf("type\n");
-    goto error_ip;
-  }
-  if(ip->size > bufsize){
-   printf("size\n");
-   goto error_ip;
-  }
-  
-  if(readi(ip, 0, (uint64)name, 0, bufsize) < 0){
-     goto error_ip;
-     printf("readi\n");
-  }
-  if(copyout(p->pagetable, (uint64)buf, name, bufsize) < 0) {
-    printf("copyout\n");
-    goto error_ip;
-  }
+  if(ip->type != T_SYMLINK) goto error_ip;
+  if(ip->size > bufsize) goto error_ip;
+
+  printf("ilock(ip)\n"); // TODO
+  if(readi(ip, 1, (uint64)buf, 0, bufsize + 1) < 0) goto error_ip;
+  //if(copyout(p->pagetable, (uint64)buf, name, bufsize) < 0) goto error_ip;
+  printf("readi\n"); // TODO
   iunlock(ip);
-  printf("end\n");
+  printf("iunlock(ip)\n"); // TODO
+
   end_op();
   return 0;
 
@@ -771,16 +815,15 @@ error_ip:
 // returns 0 upon failure.
 struct inode*
 get_dereferenced_inode(struct inode *ip){
-
-  char pathname[DIRSIZ];
+  char pathname[MAXPATH];
   struct inode *temp_ip;
   int deref_num = MAX_DEREFERENCE;
-
   temp_ip = ip;
-  while ((temp_ip->type == T_SYMLINK) & (deref_num > 0)){
+  while ((temp_ip->type == T_SYMLINK) & (deref_num > 1)){
     deref_num -= 1;
+    ilock(temp_ip);
     if(readi(temp_ip, 0, *pathname, 0, temp_ip->size) < 0) goto error;
-    iunlockput(temp_ip);
+    iunlock(temp_ip);
     if((temp_ip = namei(pathname)) == 0) return 0; 
   }
   if(temp_ip->type == T_SYMLINK) return 0;

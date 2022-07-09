@@ -25,7 +25,7 @@ struct superblock {
 #define FSMAGIC 0x10203040
 
 #define NDIRECT 12
-#define PADDINGSZ 15 // With padding <dinode> size is 64 => 16 <dinodes> per <block>
+#define PADDINGSZ 47 // With padding <dinode> size is 256 => 2 <dinodes> per <block>
 #define NINDIRECT (BSIZE / sizeof(uint))
 #define NDOUBLEINDIRECT (NINDIRECT * NINDIRECT)
 #define MAXFILE (NDIRECT + NINDIRECT + NDOUBLEINDIRECT) // Added double indirect size

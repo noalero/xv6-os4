@@ -27,10 +27,9 @@ char*
 fmtname_symlink(char* path){
   static char buf[DIRSIZ+1];
   char *p; 
-  char sym_cont[MAXPATH];
   int print_length, p_length, sym_length;
+  char sym_cont[MAXPATH];
 
-  printf("before\n");
   readlink(path, sym_cont, MAXPATH);
   // Find first character after last slash.
   for(p=path+strlen(path); p >= path && *p != '/'; p--)
@@ -47,7 +46,6 @@ fmtname_symlink(char* path){
   memmove(buf, p, p_length);
   memmove(buf + p_length, "->", 2);
   memmove(buf + p_length + 2, (const void*)sym_cont, sym_length);
-
   memset(buf + print_length, ' ', DIRSIZ - print_length);
   return buf;
 }
@@ -93,12 +91,13 @@ ls(char *path)
         printf("ls: cannot stat %s\n", buf);
         continue;
       }
-      printf("%s %d %d %d\n", fmtname(buf), st.type, st.ino, st.size);
+      if(st.type == T_SYMLINK){
+        printf("%s %d %d %l\n", fmtname_symlink(buf), st.type, st.ino, st.size);
+      }
+      else{
+        printf("%s %d %d %d\n", fmtname(buf), st.type, st.ino, st.size);
+      }
     }
-    break;
-  case T_SYMLINK:
-    printf("type symlink\n");
-    printf("%s %d %d %l\n", fmtname_symlink(path), st.type, st.ino, st.size);
     break;
   }
   close(fd);

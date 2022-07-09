@@ -255,7 +255,7 @@ create(char *path, short type, short major, short minor)
   if((ip = dirlookup(dp, name, 0)) != 0){
     iunlockput(dp);
     ilock(ip);
-    if(type == T_FILE && (ip->type == T_FILE || ip->type == T_DEVICE))
+    if(type == T_FILE && (ip->type == T_FILE /* || ip->type == T_DEVICE*/ ))
       return ip;
     iunlockput(ip);
     return 0;
@@ -280,7 +280,6 @@ create(char *path, short type, short major, short minor)
 
   if(dirlink(dp, name, ip->inum) < 0)
     panic("create: dirlink");
-
   iunlockput(dp);
 
   return ip;
@@ -311,51 +310,29 @@ sys_open(void) {
             return -1;
         }
         ilock(ip);
-        if (ip->type == T_DIR && omode != O_RDONLY) {
-            iunlockput(ip);
-            end_op();
-            return -1;
-        }
+
+      // if ((ip->type == T_SYMLINK)) {
+      //   if(strncmp(p->name, "ls", 2)){
+      //     iunlockput(ip);
+      //     if ((ip = get_dereferenced_inode(ip)) == 0){
+      //       end_op();
+      //       return -1;
+      //     } 
+      //   }
+      //   ilock(ip);
+      // }
+
+      if (ip->type == T_DIR && omode != O_RDONLY) {
+          iunlockput(ip);
+          end_op();
+          return -1;
+      }
     }
 
     if (ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)) {
         iunlockput(ip);
         end_op();
         return -1;
-    }
-
-    if ((ip->type == T_SYMLINK) && !(omode & O_NOFOLLOW)) {
-      iunlockput(ip);
-      if ((ip = get_dereferenced_inode(ip)) == 0){
-        end_op();
-        return -1;
-      }
-      ilock(ip);
-        // int count = 0;
-        // while (ip->type == T_SYMLINK && count < 31) {
-        //     int len = 0;
-        //     readi(ip, 0, (uint64) &len, 0, sizeof(int));
-
-        //     if (len > MAXPATH)
-        //         panic("open: length of path bigger than max - corrupted symlink inode");
-
-        //     readi(ip, 0, (uint64) path, sizeof(int), len + 1);
-        //     iunlockput(ip);
-        //     if ((ip = namei(path)) == 0) {
-        //         end_op();
-        //         return -1;
-        //     }
-        //     ilock(ip);
-        //     count++;
-        // }
-        // if (count >= 31) {
-        //     if ((ip->type == T_SYMLINK))
-        //         printf("%s\n", ip->addrs);
-        //     printf("We got a cycle!\n");
-        //     iunlockput(ip);
-        //     end_op();
-        //     return -1;
-        // }
     }
     
     if ((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0) {
@@ -537,37 +514,6 @@ sys_pipe(void)
   return 0;
 }
 
-int
-symlink(const char *oldpath, const char *newpath){
-  char path_name[DIRSIZ];
-  struct inode *ip, *dp;
-  uint poff = 0, oldp_size;
-
-  begin_op(); // called at the start of each FS system call.
-
-  if((dp = nameiparent((char*)newpath, path_name)) == 0){
-    end_op();
-    return -1;
-  } // <path_name> exists
-  ilock(dp);
-  if((ip = dirlookup(dp, path_name, &poff)) != 0){ // No entry matches <path_name>
-    iunlock(dp);
-    end_op();
-    return -1;
-  }
-  if ((ip = create((char*)newpath, T_SYMLINK, 0, 0)) == 0){
-    end_op();
-    return -1;
-  }
-  oldp_size = strlen(oldpath) + 1; // Size of <oldpath>
-  if(writei(ip, 0, (uint64)oldpath, 0, oldp_size) != oldp_size) return -1;
-  if(dirlink(dp, path_name, ip->inum) < 0) panic("symlink: dirlink");
-  iunlockput(ip);
-
-  end_op(); // called at the end of each FS system call.
-  return 0;  
-}
-
 uint64
 sys_symlink(void){
   char oldpath[MAXPATH], newpath[MAXARG];
@@ -586,14 +532,14 @@ sys_symlink(void){
 
 uint64
 sys_readlink(void){
-  const char *pathname;
-  char *buf = 0;
+  char pathname[MAXPATH];
+  uint64 buf = 0;
   int bufsize, first, second, third;
 
-  first = argstr(0, (char*)(&pathname), sizeof(char*));
-  second = argstr(1, buf, sizeof(char*));
+  first = argstr(0, pathname, MAXPATH);
+  second = argaddr(1, &buf);
   third = argint(2, (&bufsize));
 
   if((first < 0) | (second < 0) | (third < 0)) return -1;
-  return readlink(pathname, buf, bufsize);
+  return readlink(pathname, (char*)buf, bufsize);
 }

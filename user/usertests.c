@@ -2857,7 +2857,7 @@ run(void f(char *), char *s) {
 int
 main(int argc, char *argv[])
 {
-  sanityCheckFirstPart();
+  //sanityCheckFirstPart();
 
   int continuous = 0;
   char *justone = 0;
