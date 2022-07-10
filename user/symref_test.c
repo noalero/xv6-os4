@@ -12,6 +12,7 @@ int main(int argc, char** argv){
 
     symlink("a", "b");
     symlink("b", "a");
+    printf("kk");
     int ref_fd;
     if ((ref_fd=open("a", O_RDWR)) == -1){
         printf("Test Passed - Can't open a symbolic link with more than 31 references\n");
@@ -20,8 +21,8 @@ int main(int argc, char** argv){
         printf("Test Failed - Shouldn't open a symbolic link with more than 31 references\n");
         close(ref_fd);
     }
-    unlink("a");
     unlink("b");
+    unlink("a");
     
     exit(0);
 }

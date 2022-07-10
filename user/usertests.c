@@ -2877,15 +2877,15 @@ main(int argc, char *argv[])
     void (*f)(char *);
     char *s;
   } tests[] = {
-    {MAXVAplus, "MAXVAplus"},
-    {manywrites, "manywrites"},
-    {execout, "execout"},
-    {copyin, "copyin"},
+    //{MAXVAplus, "MAXVAplus"},
+    //{manywrites, "manywrites"}, //f
+    //{execout, "execout"},
+    //{copyin, "copyin"}, //f
     {copyout, "copyout"},
     {copyinstr1, "copyinstr1"},
     {copyinstr2, "copyinstr2"},
     {copyinstr3, "copyinstr3"},
-    {rwsbrk, "rwsbrk" },
+    {rwsbrk, "rwsbrk" }, // f
     {truncate1, "truncate1"},
     {truncate2, "truncate2"},
     {truncate3, "truncate3"},

@@ -220,7 +220,6 @@ sys_unlink(void)
 
   memset(&de, 0, sizeof(de));
   if(writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
-    panic("unlink: writei");
   if(ip->type == T_DIR){
     dp->nlink--;
     iupdate(dp);
@@ -289,9 +288,11 @@ uint64
 sys_open(void) {
     char path[MAXPATH];
     int fd, omode;
+	struct proc *p = myproc();
     struct file *f;
     struct inode *ip;
     int n;
+	
 
     if ((n = argstr(0, path, MAXPATH)) < 0 || argint(1, &omode) < 0)
         return -1;
@@ -309,18 +310,22 @@ sys_open(void) {
             end_op();
             return -1;
         }
-        ilock(ip);
 
-      // if ((ip->type == T_SYMLINK)) {
-      //   if(strncmp(p->name, "ls", 2)){
-      //     iunlockput(ip);
-      //     if ((ip = get_dereferenced_inode(ip)) == 0){
-      //       end_op();
-      //       return -1;
-      //     } 
-      //   }
-      //   ilock(ip);
-      // }
+      if (ip->type == T_SYMLINK){
+		if(strncmp(p->name, "ls", 2)){
+			if ((ip = get_dereferenced_inode(ip, MAX_DEREFERENCE)) == 0){
+				end_op();
+				return -1;
+			} 
+		}
+		else{
+			if ((ip = get_dereferenced_inode(ip, 2)) == 0){
+				end_op();
+				return -1;
+			} 
+		}
+	  }
+	  ilock(ip);
 
       if (ip->type == T_DIR && omode != O_RDONLY) {
           iunlockput(ip);
@@ -412,7 +417,7 @@ sys_chdir(void)
   
   ilock(ip);
   if(ip->type == T_SYMLINK) // Get the path aka the content of file
-    if((ip = get_dereferenced_inode(ip)) == 0) goto error; // dereference
+    if((ip = get_dereferenced_inode(ip, MAX_DEREFERENCE)) == 0) goto error; // dereference
   if(ip->type != T_DIR){
     iunlockput(ip);
     goto error;
@@ -463,7 +468,7 @@ sys_exec(void)
   }
   ilock(ip);
   if(ip->type == T_SYMLINK){
-    if((ip = get_dereferenced_inode(ip)) == 0){
+    if((ip = get_dereferenced_inode(ip, MAX_DEREFERENCE)) == 0){
       end_op();
       return -1;
     }
